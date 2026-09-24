@@ -30,3 +30,15 @@ th { color:#62737d; background:#f7fafb; }
 .governing-row { background:#fff7e8; font-weight:700; }
 @media (max-width: 980px) { .grid { grid-template-columns:1fr; } .summary { grid-template-columns:1fr 1fr; } #span-plot { min-height:430px; } }
 @media (max-width: 560px) { .shell { padding:16px; } .two, .summary { grid-template-columns:1fr; } header { flex-direction:column; } }
+.site-footer {
+    margin-top: 40px;
+    padding: 24px 16px;
+    text-align: center;
+    font-size: 14px;
+    color: #6b7280;
+    border-top: 1px solid #e5e7eb;
+}
+
+.site-footer strong {
+    color: #111827;
+}
