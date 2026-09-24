@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 
 from flask import Flask, jsonify, render_template, request
 from sag_tension import DEFAULTS, analyze
@@ -16,6 +17,11 @@ def index():
     return render_template("index.html", defaults=DEFAULTS)
 
 
+@app.get("/health")
+def health():
+    return {"status": "ok"}, 200
+
+
 @app.post("/api/calculate")
 def calculate():
     try:
@@ -27,4 +33,5 @@ def calculate():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port, debug=False)

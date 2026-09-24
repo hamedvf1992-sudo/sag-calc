@@ -46,3 +46,12 @@ The conductor graphic uses the standard equal-support parabolic approximation:
 `f = w L^2 / (8 H)`
 
 where `w` is resultant unit load, `L` is span, and `H` is horizontal tension. Verify units and design assumptions before using results for engineering decisions.
+
+
+## Render deployment
+
+- Service type: Web Service
+- Build command: `pip install -r requirements.txt`
+- Start command: `gunicorn --bind 0.0.0.0:$PORT app:app`
+- Health check path: `/health`
+- Leave Root Directory blank when `app.py` is at repository root.
