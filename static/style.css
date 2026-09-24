@@ -39,6 +39,11 @@ th { color:#62737d; background:#f7fafb; }
     border-top: 1px solid #e5e7eb;
 }
 
+.site-footer p {
+    margin: 4px 0;
+    text-align: center;
+}
+
 .site-footer strong {
     color: #111827;
 }
