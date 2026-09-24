@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sag & Tension Calculator</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <p class="eyebrow">OVERHEAD LINE ENGINEERING</p>
+        <h1>Sag & Tension Calculator</h1>
+        <p class="sub">Python conversion of the MATLAB sag–tension model with a graphical conductor profile between two equal-height towers.</p>
+      </div>
+      <div class="badge">Flask + Plotly</div>
+    </header>
+
+    <section class="grid">
+      <form id="calc-form" class="card controls">
+        <h2>Input data</h2>
+        <label>Weather zone
+          <select name="weather_zone">
+            <option>Light</option><option>Medium</option><option selected>Heavy</option><option>VeryHeavy</option>
+          </select>
+        </label>
+        <div class="two">
+          <label>Span (m)<input name="Span" type="number" step="any" value="{{ defaults.Span }}"></label>
+          <label>Tower attachment (m)<input name="tower_height" type="number" step="any" value="{{ defaults.tower_height }}"></label>
+          <label>UTS (kgf)<input name="UTS" type="number" step="any" value="{{ defaults.UTS }}"></label>
+          <label>Initial tension / UTS<input name="initial_tension_ratio" type="number" step="0.01" value="{{ defaults.initial_tension_ratio }}"></label>
+          <label>Max conductor temp (°C)<input name="CTemp" type="number" step="any" value="{{ defaults.CTemp }}"></label>
+          <label>Ambient temp (°C)<input name="ATemp" type="number" step="any" value="{{ defaults.ATemp }}"></label>
+          <label>Elastic modulus<input name="E" type="number" step="any" value="{{ defaults.E }}"></label>
+          <label>Thermal expansion α<input name="alpha" type="number" step="any" value="{{ defaults.alpha }}"></label>
+          <label>Diameter (mm)<input name="Cd" type="number" step="any" value="{{ defaults.Cd }}"></label>
+          <label>Area (mm²)<input name="CA" type="number" step="any" value="{{ defaults.CA }}"></label>
+          <label>Weight (kg/m)<input name="Cwei" type="number" step="any" value="{{ defaults.Cwei }}"></label>
+          <label>Ice density (kg/m³)<input name="rho" type="number" step="any" value="{{ defaults.rho }}"></label>
+        </div>
+        <button type="submit">Calculate</button>
+        <p id="error" class="error"></p>
+      </form>
+
+      <section class="card visualization">
+        <div class="summary">
+          <div><span>Governing state</span><strong id="governing">—</strong></div>
+          <div><span>Displayed case</span><strong id="display-case">—</strong></div>
+          <div><span>Maximum sag</span><strong id="max-sag">—</strong></div>
+          <div><span>Tension</span><strong id="tension">—</strong></div>
+        </div>
+        <div id="span-plot"></div>
+      </section>
+    </section>
+
+    <section class="card table-card">
+      <h2>Load case results</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Case</th><th>Temp °C</th><th>Wind</th><th>Ice mm</th><th>Unit load kg/m</th><th>Tension kgf</th><th>% UTS</th><th>Sag m</th></tr></thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+<script>
+const form = document.getElementById('calc-form');
+
+function number(v) { return Number.parseFloat(v); }
+function format(v, digits=2) { return Number(v).toFixed(digits); }
+
+async function calculate(event) {
+  if (event) event.preventDefault();
+  const fd = new FormData(form);
+  const payload = Object.fromEntries(fd.entries());
+  Object.keys(payload).forEach(k => { if (k !== 'weather_zone') payload[k] = number(payload[k]); });
+
+  const res = await fetch('/api/calculate', {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  const err = document.getElementById('error');
+  if (!res.ok) { err.textContent = data.error || 'Calculation failed.'; return; }
+  err.textContent = '';
+
+  document.getElementById('governing').textContent = data.governing_state;
+  document.getElementById('display-case').textContent = data.display_case.name;
+  document.getElementById('max-sag').textContent = `${format(data.display_case.sag, 3)} m`;
+  document.getElementById('tension').textContent = `${format(data.display_case.tension, 0)} kgf`;
+
+  const L = data.parameters.Span;
+  const h = data.parameters.tower_height;
+  const towerX = [0,0,null,L,L];
+  const towerY = [0,h+3,null,0,h+3];
+  const traces = [
+    {x: towerX, y: towerY, mode:'lines', name:'Towers', line:{width:7, color:'#5f6b76'}, hoverinfo:'skip'},
+    {x: data.curve.x, y: data.curve.y, mode:'lines', name:`Conductor — ${data.display_case.name}`, line:{width:4, color:'#e76f51'}},
+    {x:[0,L], y:[h,h], mode:'markers', name:'Attachments', marker:{size:9, color:'#264653'}}
+  ];
+  const ymin = Math.min(...data.curve.y, 0) - 2;
+  Plotly.react('span-plot', traces, {
+    margin:{l:55,r:25,t:25,b:50}, paper_bgcolor:'transparent', plot_bgcolor:'#fbfcfd',
+    xaxis:{title:'Horizontal distance (m)', range:[-0.06*L,1.06*L], gridcolor:'#e7ecef'},
+    yaxis:{title:'Elevation (m)', range:[ymin,h+6], gridcolor:'#e7ecef'},
+    legend:{orientation:'h', y:-0.18}, hovermode:'x unified'
+  }, {responsive:true, displaylogo:false});
+
+  const body = document.getElementById('results-body');
+  body.innerHTML = data.results.map(r => `<tr class="${r.is_governing ? 'governing-row':''}">
+    <td>${r.name}${r.is_governing ? ' ★':''}</td><td>${format(r.temp,1)}</td><td>${format(r.wind,2)}</td><td>${format(r.ice,1)}</td>
+    <td>${format(r.unit_weight,4)}</td><td>${format(r.tension,0)}</td><td>${format(r.tension_pct,1)}%</td><td>${format(r.sag,3)}</td>
+  </tr>`).join('');
+}
+form.addEventListener('submit', calculate);
+calculate();
+</script>
+</body>
+</html>
